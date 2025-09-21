@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>SKKI SMART BOT</title>
+<style>
+  :root{
+    --neon:#00eaff; --accent:#ff00ff; --bg1:#0f2027; --bg2:#203a43; --bg3:#2c5364;
+  }
+  html,body{height:100%;margin:0;font-family:Arial,Helvetica,sans-serif;background:linear-gradient(135deg,var(--bg1),var(--bg2),var(--bg3));color:white;}
+  header{background:#001226;color:var(--neon);text-align:center;padding:18px 12px;font-size:26px;font-weight:700;text-shadow:0 0 12px var(--neon);}
+  .developed{text-align:center;font-size:16px;font-weight:700;color:var(--accent);margin:10px 0;text-shadow:0 0 8px var(--accent);}
+  #chatbox{width:92%;max-width:760px;margin:18px auto;border-radius:12px;padding:14px;background:rgba(0,0,0,0.65);height:520px;overflow:auto;border:2px solid rgba(0,234,255,0.12);box-shadow:0 0 30px rgba(0,234,255,0.06);}
+  .msg{padding:10px 12px;border-radius:8px;margin:8px 0;max-width:88%;line-height:1.45;}
+  .bot{background:linear-gradient(90deg, rgba(0,234,255,0.06), rgba(0,234,255,0.02));color:var(--neon);}
+  .user{background:linear-gradient(90deg, rgba(255,0,255,0.06), rgba(255,0,255,0.02));color:var(--accent);margin-left:auto;text-align:right;}
+  .controls{text-align:center;margin:12px 0;}
+  #userInput{width:60%;max-width:480px;padding:10px;border-radius:8px;border:1px solid rgba(0,234,255,0.15);background:#071018;color:white;outline:none;}
+  #sendBtn,#voiceBtn{padding:10px 16px;border-radius:8px;border:none;background:var(--neon);color:#001;cursor:pointer;margin-left:6px;font-weight:700;box-shadow:0 0 12px rgba(0,234,255,0.12);}
+  .hint{font-size:13px;color:rgba(255,255,255,0.7);text-align:center;margin-top:6px;}
+</style>
+</head>
+<body>
+  <header>🤖 SKKI SMART BOT</header>
+  <div class="developed">✨ Developed by Rafsin ✨</div>
+
+  <div id="chatbox" aria-live="polite">
+    <div class="msg bot">হ্যালো! আমি SKKI SMART BOT — লিখুন বা Voice ব্যবহার করুন।  
+(উদাহরণ: "image: cat", "সূর্যের আলো কত মিনিটে আসে?")</div>
+  </div>
+
+  <div class="controls">
+    <input id="userInput" type="text" placeholder="এখানে লিখুন..." autocomplete="off" />
+    <button id="sendBtn">Send</button>
+    <button id="voiceBtn">🎤 Voice</button>
+    <div class="hint">👉 Enter চাপলে পাঠাবেন | "image:" লিখলে ছবি আসবে | Voice বাটনে বলুন</div>
+  </div>
+
+<script>
+const chat = document.getElementById("chatbox");
+
+function addMessage(text, fromBot=true){
+  const el = document.createElement("div");
+  el.className = "msg " + (fromBot ? "bot":"user");
+  el.innerText = text;
+  chat.appendChild(el);
+  chat.scrollTop = chat.scrollHeight;
+}
+function addImage(url){
+  const el = document.createElement("div");
+  el.className = "msg bot";
+  el.innerHTML = `<img src="${url}" style="max-width:90%;border-radius:10px;" />`;
+  chat.appendChild(el);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+async function sendMessage(){
+  const input = document.getElementById("userInput");
+  const text = input.value.trim();
+  if(!text) return;
+  addMessage(text,false);
+  input.value = "";
+
+  try{
+    if(text.toLowerCase().startsWith("image:")){
+      let prompt = text.replace("image:","").trim();
+      const res = await fetch("/api/image",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({prompt})});
+      const data = await res.json();
+      if(data.url) addImage(data.url);
+    } else {
+      const res = await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:text})});
+      const data = await res.json();
+      addMessage(data.reply,true);
+      speak(data.reply);
+    }
+  }catch(e){
+    addMessage("❌ Error: "+e.message,true);
+  }
+}
+
+/* Voice recognition */
+let recognition;
+if(window.SpeechRecognition || window.webkitSpeechRecognition){
+  recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+  recognition.lang = "bn-BD";
+  recognition.onresult = e=>{
+    document.getElementById("userInput").value = e.results[0][0].transcript;
+    sendMessage();
+  };
+}
+document.getElementById("voiceBtn").onclick=()=> recognition && recognition.start();
+
+/* Text-to-Speech */
+function speak(text){
+  const utter = new SpeechSynthesisUtterance(text);
+  utter.lang="bn-BD";
+  speechSynthesis.speak(utter);
+}
+
+document.getElementById("sendBtn").onclick=sendMessage;
+document.getElementById("userInput").addEventListener("keypress",e=>{if(e.key==="Enter")sendMessage();});
+</script>
+</body>
+</html>
+import OpenAI from "openai";
+
+const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY=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
+ });
+
+export default async function handler(req, res) {
+  if (req.method !== "POST") return res.status(405).end();
+
+  const { message } = req.body;
+
+  try {
+    const completion = await client.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [{ role: "user", content: message }]
+    });
+
+    res.json({ reply: completion.choices[0].message.content });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+}
+import OpenAI from "openai";
+
+const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY=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
+ });
+
+export default async function handler(req,res){
+  if(req.method !== "POST") return res.status(405).end();
+
+  const { prompt } = req.body;
+  try {
+    const result = await client.images.generate({
+      model:"gpt-image-1",
+      prompt,
+      size:"512x512"
+    });
+    res.json({ url: result.data[0].url });
+  } catch(err){
+    res.status(500).json({ error: err.message });
+  }
+}
+{
+  "name": "skki-smart-bot",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "vercel dev"
+  },
+  "dependencies": {
+    "openai": "^4.0.0"
+  }
+}
+{
+  "version": 2,
+  "builds": [
+    { "src": "api/*.js", "use": "@vercel/node" },
+    { "src": "public/**", "use": "@vercel/static" }
+  ],
+  "routes": [
+    { "src": "/api/(.*)", "dest": "/api/$1.js" },
+    { "src": "/(.*)", "dest": "/public/$1" }
+  ]
+}
